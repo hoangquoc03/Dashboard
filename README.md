@@ -98,3 +98,23 @@ management:
 ```
 
 Sau khi ứng dụng chạy, kiểm tra `/actuator/prometheus`, Prometheus **Status → Targets** ở trạng thái **UP**, và truy vấn `jvm_memory_used_bytes` có label `application` đúng. Trong dashboard chọn biến `$application` và `$instance`; nếu `$application` trống, xác nhận metric có common tag đó, endpoint/target đúng, và tên metric/label khớp truy vấn dashboard.
+
+## Server Monitoring Dashboard — Grafana Variables
+
+Dashboard **Server Monitoring Dashboard** được provision tự động từ `grafana/dashboards/server-monitoring.json`; cấu hình provider hiện tại đã nạp tất cả JSON từ `grafana/dashboards`. Mở `http://localhost:3000/d/server-monitoring/server-monitoring` và dùng menu **Server** ở đầu dashboard để chọn một hoặc nhiều instance. Tùy chọn **All** cũng được bật. Panel hiển thị mỗi instance thành một chuỗi riêng, không cộng RAM của nhiều server.
+
+Biến `instance` dùng datasource Prometheus hiện có và lấy giá trị theo query variable:
+
+```text
+label_values(node_uname_info, instance)
+```
+
+Panel RAM sử dụng truy vấn regex để hỗ trợ cả lựa chọn nhiều instance và All:
+
+```promql
+node_memory_MemFree_bytes{instance=~"${instance:regex}"}
+```
+
+Query `label_values(...)` là cú pháp Grafana Prometheus variable, không phải PromQL để chạy trực tiếp trong Prometheus expression browser.
+
+Prometheus hiện chỉ báo target Node Exporter `node-exporter:9100` ở trạng thái **UP**; giá trị `instance` thực tế được xác nhận là `node-exporter:9100`. Target còn lại là Prometheus `localhost:9090`, không phải máy Node Exporter. Các tên mong muốn `app-server-1`, `db-server-1`, `cache-server-1` chưa xuất hiện và không được tạo giả. Để giám sát các máy đó, cần Node Exporter chạy trên từng server thật và thêm từng địa chỉ `server:9100` vào Prometheus `node-exporter` scrape job; sau khi target healthy và metrics `node_uname_info` có mặt, menu sẽ tự lấy các instance thực tế.
