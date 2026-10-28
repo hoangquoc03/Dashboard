@@ -34,3 +34,27 @@ docker compose down
 ```
 
 Lệnh trên không xóa named volumes, vì vậy dữ liệu Prometheus và Grafana được giữ lại. Không dùng `docker compose down -v` nếu muốn giữ dữ liệu.
+
+## VPS Health Dashboard
+
+Compose chạy thêm `node-exporter` và Prometheus scrape metric tại `node-exporter:9100` trên mạng nội bộ. Grafana tự động provision dashboard **VPS Health Dashboard** từ `grafana/dashboards/vps-health.json`; file provider nằm tại `grafana/provisioning/dashboards/dashboards.yml`.
+
+Sau khi cập nhật/chạy stack, xác nhận container bằng `docker compose ps`. Trong Prometheus, kiểm tra trang **Status → Targets**: target `node-exporter` phải ở trạng thái **UP**. Trong Grafana, mở **Dashboards → VPS Health Dashboard** (hoặc `http://localhost:3000/d/vps-health/vps-health-dashboard`) và xác nhận hai panel `CPU Usage (%)` và `Free Memory` có dữ liệu. Dashboard mặc định hiển thị **Last 1 hour** và tự refresh mỗi **30s**.
+
+Panel CPU dùng truy vấn:
+
+```promql
+100 * (1 - avg by (instance) (rate(node_cpu_seconds_total{mode="idle"}[5m])))
+```
+
+`rate(...[5m])` tính tốc độ CPU idle trong 5 phút; `avg by (instance)` lấy trung bình trên các core của từng máy; `1 - idle` là tỷ lệ bận và nhân `100` để thành phần trăm. Giữ label `instance` giúp phân biệt nhiều máy.
+
+Panel RAM dùng truy vấn:
+
+```promql
+node_memory_MemFree_bytes
+```
+
+Metric vẫn ở Bytes; panel dùng Unit `bytes` (Bytes IEC), để Grafana tự định dạng thành KiB/MiB/GiB. Không chia metric trong PromQL chỉ để đổi đơn vị; `MiB` là đơn vị nhị phân, khác `MB` hệ thập phân. Mỗi instance được giữ riêng, không cộng RAM của nhiều VPS.
+
+> Node Exporter được cấu hình với host PID và bind mount `/proc`, `/sys`, `/` theo mô hình Linux host. Trên Docker Desktop for Windows, các metric này có thể phản ánh Linux VM của Docker thay vì Windows host; cấu hình không phải bộ thu thập Windows Exporter.
